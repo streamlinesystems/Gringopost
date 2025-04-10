@@ -7,6 +7,7 @@ PASSWORD = os.getenv("GRINGO_PASSWORD")
 
 TITLE = "Dra Priscila Matovelle, geriatrics–palliative care"
 CITY = "Cuenca"
+CONTACT = "geriatricaresalud@gmail.com"
 DESCRIPTION = """Hello, dear expats!
 
 My name is Dr. Priscila Matovelle, and I specialize in Geriatrics and Palliative Care. I’m originally from Cuenca, where I studied medicine before continuing my training in Spain, where I also earned my Ph.D. in elderly care.
@@ -31,28 +32,33 @@ If you or a loved one need expert care, I’m here to help.
 Contact me at: 098 063 4974
 
 Looking forward to meeting you and supporting your health and wellness here in Cuenca or anywhere in the world!
-
-geriatricaresalud@gmail.com
 """
 
 def run_bot():
     with sync_playwright() as p:
+        print("🚀 Launching browser...")
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
+        print("🔐 Logging in to GringoPost...")
         page.goto("https://gringopost.com/login")
-        page.fill('input[name="email"]', EMAIL)
-        page.fill('input[name="password"]', PASSWORD)
-        page.click('input[value="Login"]')
+        page.wait_for_selector('input[name="log"]')
+        page.fill('input[name="log"]', EMAIL)
+        page.fill('input[name="pwd"]', PASSWORD)
+        page.click('input[name="wp-submit"]')
         page.wait_for_timeout(3000)
 
+        print("📝 Creating post...")
         page.goto("https://gringopost.com/posting-page/services/")
         page.fill('input[name="postTitle"]', TITLE)
         page.fill('textarea[name="postBody"]', DESCRIPTION)
         page.fill('input[name="postCity"]', CITY)
+        page.fill('input[name="postEmail"]', CONTACT)
 
         page.click('input[value="none"]')  # Boost option: none
         page.click('button:has-text("NEXT")')
+        page.wait_for_timeout(1000)
+        page.click('button:has-text("Send")')
 
         print("✅ Post submitted successfully!")
         browser.close()
