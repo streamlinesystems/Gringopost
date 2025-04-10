@@ -1,67 +1,46 @@
-from playwright.sync_api import sync_playwright
-import os
-import time
+name: GringoPost Bot
 
-EMAIL = os.getenv("GRINGO_EMAIL")
-PASSWORD = os.getenv("GRINGO_PASSWORD")
+on:
+  schedule:
+    # Runs at 9:00 AM on Mondays and Wednesdays (GMT-5 → 14:00 UTC)
+    - cron: '0 14 * * 1,3'
+  workflow_dispatch:  # allow manual runs
 
-TITLE = "Dra Priscila Matovelle, geriatrics–palliative care"
-CITY = "Cuenca"
-CONTACT = "geriatricaresalud@gmail.com"
-DESCRIPTION = """Hello, dear expats!
+jobs:
+  post:
+    runs-on: ubuntu-latest
 
-My name is Dr. Priscila Matovelle, and I specialize in Geriatrics and Palliative Care. I’m originally from Cuenca, where I studied medicine before continuing my training in Spain, where I also earned my Ph.D. in elderly care.
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
 
-After years of international experience, I recently returned to Cuenca, and I’m excited to offer high-quality, compassionate medical care to the expat community. 
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
 
-I understand how challenging it can be to navigate healthcare in a foreign country—I lived in Virginia Beach for a year, so I truly empathize with those challenges.
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        playwright install chromium
 
-Medical Services:
-– Comprehensive specialized care for adults over 65 years of age.
-– Pre-surgical frailty assessment and post-surgical follow-up.
-– Diagnosis and management of acute and chronic diseases such as hypertension, diabetes, thyroid disorders, among others.
-– Geriatric syndromes: Malnutrition, dysmobility, loss of muscle mass, falls, incontinence, polypharmacy, chronic pain.
-– Cognitive disorders: Memory loss, dementia/Alzheimer’s disease.
-– Depression, anxiety, emotional disturbance, Insomnia.
-– Geriatric and oncological palliative care
+    - name: Run GringoPost Bot
+      env:
+        GRINGO_EMAIL: ${{ secrets.GRINGO_EMAIL }}
+        GRINGO_PASSWORD: ${{ secrets.GRINGO_PASSWORD }}
+      run: |
+        echo "📥 Starting GringoPost bot..."
+        python3 post_gringopost.py
+        echo "✅ Bot finished execution. Check for 'Post submitted successfully!' message in logs."
 
-I offer home visits, online or consultations at my office in Hospital Monte Sinaí, Tower I, office 403. 
-
-If you or a loved one need expert care, I’m here to help. 
-
-Contact me at: 098 063 4974
-
-Looking forward to meeting you and supporting your health and wellness here in Cuenca or anywhere in the world!
-"""
-
-def run_bot():
-    with sync_playwright() as p:
-        print("🚀 Launching browser...")
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-
-        print("🔐 Logging in to GringoPost...")
-        page.goto("https://gringopost.com/login")
-        page.wait_for_selector('input[name="log"]')
-        page.fill('input[name="log"]', EMAIL)
-        page.fill('input[name="pwd"]', PASSWORD)
-        page.click('input[name="wp-submit"]')
-        page.wait_for_timeout(3000)
-
-        print("📝 Creating post...")
-        page.goto("https://gringopost.com/posting-page/services/")
-        page.fill('input[name="postTitle"]', TITLE)
-        page.fill('textarea[name="postBody"]', DESCRIPTION)
-        page.fill('input[name="postCity"]', CITY)
-        page.fill('input[name="postEmail"]', CONTACT)
-
-        page.click('input[value="none"]')  # Boost option: none
-        page.click('button:has-text("NEXT")')
-        page.wait_for_timeout(1000)
-        page.click('button:has-text("Send")')
-
-        print("✅ Post submitted successfully!")
-        browser.close()
-
-if __name__ == "__main__":
-    run_bot()
+    - name: Upload screenshots if they exist
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: screenshots
+        path: |
+          screenshot_*.png
+          error_*.png
+          *.png
+        if-no-files-found: ignore
