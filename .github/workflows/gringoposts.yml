@@ -2,8 +2,7 @@ name: GringoPost Bot
 
 on:
   schedule:
-    # Runs at 9:00 AM on Mondays and Wednesdays (GMT-5 → 14:00 UTC)
-    -     - cron: '0 14 * * 1,3,5'
+    - cron: '0 14 * * 1,3,5'
   workflow_dispatch:  # allow manual runs
 
 jobs:
