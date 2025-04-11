@@ -36,14 +36,22 @@ Contact me at: 098 063 4974
 Looking forward to meeting you and supporting your health and wellness here in Cuenca or anywhere in the world!
 """
 
-def run_bot():
+def run_bot(playwright):
     if not EMAIL or not PASSWORD:
         print("❌ ERROR: GRINGO_EMAIL y GRINGO_PASSWORD no están definidos.")
         sys.exit(1)
 
-    with sync_playwright() as p:
-        print("🚀 Iniciando navegador...")
+    print("🚀 Iniciando navegador...")
+    browser = playwright.chromium.launch(headless=True)
+    context = browser.new_context()
+    page = context.new_page()
+
+    # Aquí puedes agregar la lógica para login y post
+    page.goto("https://gringopost.com/login")
+
+    # Cierra el navegador al final
+    browser.close()
+
 if __name__ == "__main__":
     with sync_playwright() as playwright:
         run_bot(playwright)
-
