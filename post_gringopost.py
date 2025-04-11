@@ -1,84 +1,93 @@
-from playwright.sync_api import sync_playwright, TimeoutError
 import os
 import sys
-import argparse
 import logging
+import argparse
+from playwright.sync_api import sync_playwright, TimeoutError, Page
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# --- Configuración de logs ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# --- Constantes ---
+LOGIN_URL = "https://gringopost.com/wp-login.php"
+DASHBOARD_URL_PATTERN = "**/dashboard*"  # Ajusta según lo que veas después del login
+DEFAULT_TIMEOUT = 30000  # 30 segundos
+
+# --- Credenciales desde entorno ---
 EMAIL = os.getenv("GRINGO_EMAIL")
 PASSWORD = os.getenv("GRINGO_PASSWORD")
 
-TITLE = "Dra Priscila Matovelle, geriatrics–palliative care"
-CITY = "Cuenca"
-CONTACT = "geriatricaresalud@gmail.com"
+# --- Funciones ---
+def login(page: Page, email: str, password: str):
+    logging.info("🌐 Abriendo página de login...")
+    page.goto(LOGIN_URL, wait_until="domcontentloaded")
 
-DESCRIPTION = """..."""  # Aquí sigue tu descripción completa
+    try:
+        logging.info("⏳ Esperando campo de usuario #username...")
+        page.wait_for_selector("input#username", timeout=DEFAULT_TIMEOUT)
+
+        logging.info("✏️ Rellenando formulario de login...")
+        page.fill("input#username", email)
+        page.fill("input[name='pwd']", password)
+        page.check("input[name='rememberme']")
+        page.click("input[name='wp-submit']")
+
+        page.wait_for_url(DASHBOARD_URL_PATTERN, timeout=DEFAULT_TIMEOUT)
+        logging.info("✅ Login exitoso")
+        page.screenshot(path="screenshot_login_success.png")
+
+    except TimeoutError as e:
+        logging.error(f"❌ Timeout durante el login: {e}")
+        page.screenshot(path="screenshot_login_failed.png")
+        raise
+
+def post_service(page: Page):
+    logging.info("📤 Simulación de post (puedes implementar esto)...")
+    # Aquí deberías hacer el post real
+    page.screenshot(path="screenshot_post_done.png")
 
 def run_bot(headless_mode: bool):
     if not EMAIL or not PASSWORD:
-        logger.error("❌ GRINGO_EMAIL y GRINGO_PASSWORD no están definidos.")
+        logging.error("❌ Variables de entorno GRINGO_EMAIL o GRINGO_PASSWORD no están definidas.")
         sys.exit(1)
 
     browser = None
     page = None
 
-    try:
-        with sync_playwright() as p:
-            logger.info(f"🚀 Iniciando navegador... (headless: {headless_mode})")
+    with sync_playwright() as p:
+        try:
+            logging.info(f"🚀 Iniciando Playwright... (headless={headless_mode})")
             browser = p.chromium.launch(headless=headless_mode)
             context = browser.new_context()
             page = context.new_page()
 
-            logger.info("🌐 Navegando a la página de inicio de sesión...")
-            page.goto("https://gringopost.com/login", timeout=30000)
+            logging.info("🏁 Iniciando secuencia de login y post...")
+            login(page, EMAIL, PASSWORD)
+            post_service(page)
 
-            logger.info("⏳ Esperando campo de email...")
-            page.wait_for_selector('input[name="email"]', timeout=10000)
-
-            logger.info("✍️ Completando formulario de login...")
-            page.fill('input[name="email"]', EMAIL)
-            page.fill('input[name="password"]', PASSWORD)
-            page.click('button[type="submit"]')
-
-            page.wait_for_selector("a[href='/post-service']", timeout=10000)
-            logger.info("✅ Login exitoso.")
-
-            # Aquí seguiría tu código para el post...
-
-            page.screenshot(path="screenshot_success.png")
-
-    except TimeoutError as e:
-        logger.error(f"⏱️ TimeoutError: {e}")
-        if page:
-            try:
-                page.screenshot(path="screenshot_timeout.png")
-            except Exception as inner_e:
-                logger.warning(f"No se pudo capturar screenshot de timeout: {inner_e}")
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"💥 Error inesperado: {str(e)}")
-        if page:
-            try:
-                page.screenshot(path="screenshot_error.png")
-            except Exception as inner_e:
-                logger.warning(f"No se pudo capturar screenshot de error: {inner_e}")
-        sys.exit(1)
-    finally:
-        if browser:
-            try:
-                logger.info("🚪 Cerrando navegador...")
+        except Exception as e:
+            logging.exception("❌ Error inesperado durante la ejecución:")
+            if page:
+                try:
+                    page.screenshot(path="screenshot_error.png")
+                    logging.info("📸 Screenshot de error tomada.")
+                except Exception as ss_error:
+                    logging.warning(f"⚠️ No se pudo tomar screenshot del error: {ss_error}")
+            raise
+        finally:
+            if browser:
                 browser.close()
-            except Exception as e:
-                logger.warning(f"No se pudo cerrar el navegador: {e}")
+                logging.info("🚪 Navegador cerrado.")
+            else:
+                logging.warning("⚠️ No se cerró el navegador.")
 
+# --- Entrada principal ---
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Bot de GringoPost")
     parser.add_argument(
         "--headless",
         action=argparse.BooleanOptionalAction,
-        default=True
+        default=True,
+        help="Ejecutar en modo headless (por defecto)"
     )
     args = parser.parse_args()
     run_bot(headless_mode=args.headless)
