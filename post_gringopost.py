@@ -9,7 +9,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # --- Constantes ---
 LOGIN_URL = "https://gringopost.com/wp-login.php"
-# Se actualiza el patrón para que coincida exactamente con la URL de redirección post-login
 DASHBOARD_URL_PATTERN = "https://gringopost.com/users/bookmark/"
 DEFAULT_TIMEOUT = 30000  # 30 segundos
 
@@ -23,29 +22,39 @@ def login(page: Page, email: str, password: str):
     page.goto(LOGIN_URL, wait_until="domcontentloaded")
 
     try:
-        # Esperar y llenar usuario
+        # Esperar campo de usuario
         logging.info("⏳ Esperando campo de usuario...")
         page.wait_for_selector("input#username", timeout=DEFAULT_TIMEOUT)
-        page.fill("input#username", email)
 
-        # Esperar y llenar contraseña
+        # Esperar campo de contraseña
         logging.info("⏳ Esperando campo de contraseña...")
         page.wait_for_selector("input#password", timeout=DEFAULT_TIMEOUT)
-        page.fill("input#password", password)
 
-        # Esperar y marcar "Remember Me"
+        # Esperar checkbox Remember Me
         logging.info("⏳ Esperando checkbox 'Remember Me'...")
-        page.wait_for_selector("input#remember_me", state="visible", timeout=DEFAULT_TIMEOUT)
-        page.check("input#remember_me")
+        page.wait_for_selector("input[name='rememberme']", timeout=DEFAULT_TIMEOUT)
 
-        # Esperar y hacer clic en submit
+        # Esperar botón de submit (visible)
         logging.info("⏳ Esperando botón de submit...")
         submit_button = page.locator("input[name='wp-submit']")
-        submit_button.wait_for(state="enabled", timeout=DEFAULT_TIMEOUT)
-        logging.info("➡️ Enviando login...")
-        submit_button.click()
+        submit_button.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
 
-        # Verificar redirección al dashboard
+        # Llenar formulario
+        logging.info("✏️ Rellenando formulario de login...")
+        page.fill("input#username", email)
+        page.fill("input#password", password)
+        page.check("input[name='rememberme']")
+
+        # Verificar si el botón está habilitado y hacer clic
+        if submit_button.is_enabled():
+            logging.info("➡️ Enviando login...")
+            submit_button.click()
+        else:
+            logging.error("⚠️ Botón de login visible pero no habilitado")
+            page.screenshot(path="screenshot_submit_disabled.png")
+            raise Exception("Botón de login no habilitado")
+
+        # Esperar redirección al dashboard
         page.wait_for_url(DASHBOARD_URL_PATTERN, timeout=DEFAULT_TIMEOUT)
         logging.info("✅ Login exitoso")
         page.screenshot(path="screenshot_login_success.png")
@@ -56,7 +65,7 @@ def login(page: Page, email: str, password: str):
         raise
 
 def post_service(page: Page):
-    logging.info("📤 Simulación de post (implementa lo que necesites aquí)...")
+    logging.info("📤 Simulación de post (a implementar)...")
     page.screenshot(path="screenshot_post_done.png")
 
 def run_bot(headless_mode: bool):
