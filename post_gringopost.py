@@ -9,7 +9,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # --- Constantes ---
 LOGIN_URL = "https://gringopost.com/wp-login.php"
-DASHBOARD_URL_PATTERN = "**/dashboard*"  # Ajusta según lo que veas después del login
+# Se actualiza el patrón para que coincida exactamente con la URL de redirección post-login
+DASHBOARD_URL_PATTERN = "https://gringopost.com/users/bookmark/"
 DEFAULT_TIMEOUT = 30000  # 30 segundos
 
 # --- Credenciales desde entorno ---
@@ -22,15 +23,29 @@ def login(page: Page, email: str, password: str):
     page.goto(LOGIN_URL, wait_until="domcontentloaded")
 
     try:
-        logging.info("⏳ Esperando campo de usuario #username...")
+        # Esperar y llenar usuario
+        logging.info("⏳ Esperando campo de usuario...")
         page.wait_for_selector("input#username", timeout=DEFAULT_TIMEOUT)
-
-        logging.info("✏️ Rellenando formulario de login...")
         page.fill("input#username", email)
-        page.fill("input[name='pwd']", password)
-        page.check("input[name='rememberme']")
-        page.click("input[name='wp-submit']")
 
+        # Esperar y llenar contraseña
+        logging.info("⏳ Esperando campo de contraseña...")
+        page.wait_for_selector("input#password", timeout=DEFAULT_TIMEOUT)
+        page.fill("input#password", password)
+
+        # Esperar y marcar "Remember Me"
+        logging.info("⏳ Esperando checkbox 'Remember Me'...")
+        page.wait_for_selector("input#remember_me", state="visible", timeout=DEFAULT_TIMEOUT)
+        page.check("input#remember_me")
+
+        # Esperar y hacer clic en submit
+        logging.info("⏳ Esperando botón de submit...")
+        submit_button = page.locator("input[name='wp-submit']")
+        submit_button.wait_for(state="enabled", timeout=DEFAULT_TIMEOUT)
+        logging.info("➡️ Enviando login...")
+        submit_button.click()
+
+        # Verificar redirección al dashboard
         page.wait_for_url(DASHBOARD_URL_PATTERN, timeout=DEFAULT_TIMEOUT)
         logging.info("✅ Login exitoso")
         page.screenshot(path="screenshot_login_success.png")
@@ -41,8 +56,7 @@ def login(page: Page, email: str, password: str):
         raise
 
 def post_service(page: Page):
-    logging.info("📤 Simulación de post (puedes implementar esto)...")
-    # Aquí deberías hacer el post real
+    logging.info("📤 Simulación de post (implementa lo que necesites aquí)...")
     page.screenshot(path="screenshot_post_done.png")
 
 def run_bot(headless_mode: bool):
