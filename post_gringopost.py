@@ -42,4 +42,4 @@ def run_bot():
         sys.exit(1)
 
     with sync_playwright() as p:
-        print("🚀 Iniciando navegador
+        print("🚀 Iniciando navegador...")
