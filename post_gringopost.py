@@ -43,3 +43,7 @@ def run_bot():
 
     with sync_playwright() as p:
         print("🚀 Iniciando navegador...")
+if __name__ == "__main__":
+    with sync_playwright() as playwright:
+        run_bot(playwright)
+
