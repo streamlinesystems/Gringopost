@@ -40,7 +40,12 @@ def login(page: Page, email: str, password: str):
         # Esperar y hacer clic en el botón de submit
         logging.info("⏳ Esperando botón de submit...")
         submit_button = page.locator("input[name='wp-submit']")
-        submit_button.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
+        # Esperamos que el botón esté en el DOM
+        submit_button.wait_for(timeout=DEFAULT_TIMEOUT, state="attached")
+        # Si no es visible, se intenta hacer scroll para que aparezca en la vista
+        if not submit_button.is_visible():
+            logging.warning("El botón de submit no es visible, se intenta hacer scroll a la vista.")
+            submit_button.scroll_into_view_if_needed()
         logging.info("➡️ Enviando login...")
         submit_button.click()
 
