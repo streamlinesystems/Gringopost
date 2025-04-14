@@ -32,14 +32,14 @@ def login(page: Page, email: str, password: str):
         page.wait_for_selector("input#password", timeout=DEFAULT_TIMEOUT)
         page.fill("input#password", password)
 
-        # Esperar y marcar "Remember Me"
+        # Esperar y marcar el checkbox "Remember Me"
         logging.info("⏳ Esperando checkbox 'Remember Me'...")
         page.wait_for_selector("input#remember_me", state="visible", timeout=DEFAULT_TIMEOUT)
         page.check("input#remember_me")
 
-        # Esperar y hacer clic en el botón de submit
+        # Esperar y hacer clic en el botón de login (selector actualizado)
         logging.info("⏳ Esperando botón de submit...")
-        submit_button = page.locator("input[name='wp-submit']")
+        submit_button = page.locator("button[name='uwp_login_submit']")
         # Esperamos que el botón esté en el DOM
         submit_button.wait_for(timeout=DEFAULT_TIMEOUT, state="attached")
         # Si no es visible, se intenta hacer scroll para que aparezca en la vista
@@ -59,54 +59,3 @@ def login(page: Page, email: str, password: str):
         logging.error(f"❌ Timeout durante el login: {e}")
         page.screenshot(path="screenshot_login_failed.png")
         raise
-
-def post_service(page: Page):
-    logging.info("📤 Simulación de post (implementa lo que necesites aquí)...")
-    page.screenshot(path="screenshot_post_done.png")
-
-def run_bot(headless_mode: bool):
-    if not EMAIL or not PASSWORD:
-        logging.error("❌ Variables de entorno GRINGO_EMAIL o GRINGO_PASSWORD no están definidas.")
-        sys.exit(1)
-
-    browser = None
-    page = None
-
-    with sync_playwright() as p:
-        try:
-            logging.info(f"🚀 Iniciando Playwright... (headless={headless_mode})")
-            browser = p.chromium.launch(headless=headless_mode)
-            context = browser.new_context()
-            page = context.new_page()
-
-            logging.info("🏁 Iniciando secuencia de login y post...")
-            login(page, EMAIL, PASSWORD)
-            post_service(page)
-
-        except Exception as e:
-            logging.exception("❌ Error inesperado durante la ejecución:")
-            if page:
-                try:
-                    page.screenshot(path="screenshot_error.png")
-                    logging.info("📸 Screenshot de error tomada.")
-                except Exception as ss_error:
-                    logging.warning(f"⚠️ No se pudo tomar screenshot del error: {ss_error}")
-            raise
-        finally:
-            if browser:
-                browser.close()
-                logging.info("🚪 Navegador cerrado.")
-            else:
-                logging.warning("⚠️ No se cerró el navegador.")
-
-# --- Entrada principal ---
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Bot de GringoPost")
-    parser.add_argument(
-        "--headless",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Ejecutar en modo headless (por defecto)"
-    )
-    args = parser.parse_args()
-    run_bot(headless_mode=args.headless)
