@@ -11,115 +11,128 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 LOGIN_URL = "https://gringopost.com/wp-login.php"
 DASHBOARD_URL_PATTERN = "https://gringopost.com/users/bookmark/"
 NEW_POST_URL = "https://gringopost.com/posting-page/services/"
-DEFAULT_TIMEOUT = 30000  # 30 segundos
+DEFAULT_TIMEOUT = 60000  # 60,000 ms = 60 segundos
 
 # --- Credenciales desde entorno ---
 EMAIL = os.getenv("GRINGO_EMAIL")
 PASSWORD = os.getenv("GRINGO_PASSWORD")
 
-# --- Funciones ---
-def login(page: Page, email: str, password: str):
+def login(page: Page, email: str, password: str, attempts: int = 3):
     logging.info("🌐 Abriendo página de login...")
     page.goto(LOGIN_URL, wait_until="domcontentloaded")
+    
+    for attempt in range(1, attempts + 1):
+        try:
+            logging.info("🖊️ Intento %d/%d de login", attempt, attempts)
+            # Campo de usuario: prueba primero con input#username, luego con input#user_login
+            try:
+                page.wait_for_selector("input#username", timeout=DEFAULT_TIMEOUT)
+                page.fill("input#username", email)
+            except TimeoutError:
+                logging.warning("No se encontró 'input#username'; intentando 'input#user_login'...")
+                page.wait_for_selector("input#user_login", timeout=DEFAULT_TIMEOUT)
+                page.fill("input#user_login", email)
 
-    try:
-        # Esperar y llenar campo de usuario
-        logging.info("⏳ Esperando campo de usuario...")
-        page.wait_for_selector("input#username", timeout=DEFAULT_TIMEOUT)
-        page.fill("input#username", email)
+            # Campo de contraseña
+            logging.info("⏳ Esperando campo de contraseña...")
+            page.wait_for_selector("input#password", timeout=DEFAULT_TIMEOUT)
+            page.fill("input#password", password)
 
-        # Esperar y llenar campo de contraseña
-        logging.info("⏳ Esperando campo de contraseña...")
-        page.wait_for_selector("input#password", timeout=DEFAULT_TIMEOUT)
-        page.fill("input#password", password)
+            # Checkbox "Remember Me"
+            logging.info("⏳ Esperando checkbox 'Remember Me'...")
+            # Ajusta este selector según lo que veas en la página (input#remember_me o input[name='rememberme'])
+            try:
+                page.wait_for_selector("input#remember_me", state="visible", timeout=DEFAULT_TIMEOUT)
+                page.check("input#remember_me")
+            except TimeoutError:
+                logging.warning("No se encontró 'input#remember_me'; intentando 'input[name=\"rememberme\"]'...")
+                page.wait_for_selector("input[name='rememberme']", timeout=DEFAULT_TIMEOUT)
+                page.check("input[name='rememberme']")
 
-        # Esperar y marcar checkbox "Remember Me"
-        logging.info("⏳ Esperando checkbox 'Remember Me'...")
-        page.wait_for_selector("input#remember_me", state="visible", timeout=DEFAULT_TIMEOUT)
-        page.check("input#remember_me")
+            # Botón de login
+            logging.info("⏳ Esperando botón de login...")
+            # Verifica con las DevTools el selector real; aquí se usa input[name='wp-submit'] como estándar
+            try:
+                submit_button = page.locator("input[name='wp-submit']")
+                submit_button.wait_for(timeout=DEFAULT_TIMEOUT, state="enabled")
+            except TimeoutError:
+                logging.warning("No se encontró el botón con 'input[name=\"wp-submit\"]'; intentando otro selector...")
+                submit_button = page.locator("button:has-text('Login')")
+                submit_button.wait_for(timeout=DEFAULT_TIMEOUT, state="enabled")
+            
+            if not submit_button.is_visible():
+                logging.warning("El botón 'Login' no es visible; se intenta hacer scroll a la vista.")
+                submit_button.scroll_into_view_if_needed()
+            logging.info("➡️ Haciendo clic en el botón 'Login'...")
+            submit_button.click()
 
-        # Hacer clic en el botón de login
-        logging.info("⏳ Esperando botón de login...")
-        # Selector actualizado (conforme al HTML entregado anteriormente)
-        submit_button = page.locator("button[name='uwp_login_submit']")
-        submit_button.wait_for(timeout=DEFAULT_TIMEOUT, state="attached")
-        if not submit_button.is_visible():
-            logging.warning("El botón 'Login' no es visible; se intenta hacer scroll a la vista.")
-            submit_button.scroll_into_view_if_needed()
-        logging.info("➡️ Haciendo clic en el botón 'Login'...")
-        submit_button.click()
+            # Espera redirección o confirmación de login
+            logging.info("🔄 Esperando redirección al dashboard o aparición de un elemento característico...")
+            page.wait_for_url(DASHBOARD_URL_PATTERN, timeout=DEFAULT_TIMEOUT)
+            logging.info("✅ Login exitoso en el intento %d", attempt)
+            page.screenshot(path="screenshot_login_success.png")
+            return
 
-        # Verificar redirección (si el login es exitoso)
-        logging.info("🔄 Esperando redirección al dashboard...")
-        page.wait_for_url(DASHBOARD_URL_PATTERN, timeout=DEFAULT_TIMEOUT)
-        logging.info("✅ Login exitoso")
-        page.screenshot(path="screenshot_login_success.png")
+        except TimeoutError as e:
+            logging.error("❌ Timeout durante el login en intento %d: %s", attempt, e)
+            page.screenshot(path=f"screenshot_login_failed_attempt_{attempt}.png")
+            if attempt == attempts:
+                raise
 
-    except TimeoutError as e:
-        logging.error(f"❌ Timeout durante el login: {e}")
-        page.screenshot(path="screenshot_login_failed.png")
-        raise
-
-def create_service_post(page: Page, title: str, description: str,
-                        public_contact: str, city: str):
-    """
-    Crea un post de servicio siguiendo los pasos de la guía.
-    Ajusta los selectores según el HTML de tu sitio.
-    """
-    logging.info("📝 Navegando a la página de creación de post de servicios...")
-    page.goto(NEW_POST_URL, wait_until="networkidle")
+def create_service_post(page: Page, title: str, description: str, public_contact: str, city: str):
+    logging.info("📝 Navegando a la página de creación de post...")
+    page.goto(NEW_POST_URL, wait_until="domcontentloaded")
     
     try:
-        # Llenar el campo de título
+        # Campo de título
         logging.info("⏳ Esperando campo de título...")
-        # Se asume que el campo de título es un input con el nombre 'post_title'
         page.wait_for_selector("input[name='post_title']", timeout=DEFAULT_TIMEOUT)
         page.fill("input[name='post_title']", title)
         
-        # Llenar el campo de descripción
+        # Campo de descripción
         logging.info("⏳ Esperando campo de descripción...")
-        # Se asume que la descripción se ingresa en un textarea con el nombre 'post_description'
         page.wait_for_selector("textarea[name='post_description']", timeout=DEFAULT_TIMEOUT)
         page.fill("textarea[name='post_description']", description)
         
-        # Llenar el campo de Public Contact info (opcional)
+        # Campo de Public Contact info
         logging.info("⏳ Esperando campo de Public Contact info...")
         page.wait_for_selector("input[name='public_contact']", timeout=DEFAULT_TIMEOUT)
         page.fill("input[name='public_contact']", public_contact)
         
-        # Llenar el campo de Ciudad
+        # Campo de Ciudad
         logging.info("⏳ Esperando campo de Ciudad...")
         page.wait_for_selector("input[name='city']", timeout=DEFAULT_TIMEOUT)
         page.fill("input[name='city']", city)
         
-        # Seleccionar la opción "None" en Boost in Newsletter/Post on Facebook
+        # Opción Boost/Newsletter - seleccionar "None"
         logging.info("⏳ Seleccionando opción 'None' para Boost/Post en Facebook...")
-        # Se asume que es un radio button con el valor "None" y el nombre 'post_boost'
         page.wait_for_selector("input[name='post_boost'][value='None']", timeout=DEFAULT_TIMEOUT)
         page.check("input[name='post_boost'][value='None']")
         
-        # Hacer clic en "Next"
+        # Botón "Next"
         logging.info("➡️ Haciendo clic en 'Next'...")
+        # Puedes optar por button:has-text("Next") si es más confiable
         page.wait_for_selector("button[name='next']", timeout=DEFAULT_TIMEOUT)
         page.click("button[name='next']")
         
-        # Revisar el post (la revisión se muestra en una sección con un ID específico, por ejemplo #gf_1067)
+        # Página de revisión
         logging.info("⏳ Esperando página de revisión...")
         page.wait_for_selector("#gf_1067", timeout=DEFAULT_TIMEOUT)
         
-        # Hacer clic en "Send"
+        # Botón "Send"
         logging.info("➡️ Haciendo clic en 'Send'...")
         page.wait_for_selector("button[name='send']", timeout=DEFAULT_TIMEOUT)
         page.click("button[name='send']")
         
-        # Esperar que la publicación final se complete (puede aparecer un mensaje o redirección)
-        logging.info("⏳ Esperando finalización del post...")
-        page.wait_for_selector("#gf_1067", timeout=DEFAULT_TIMEOUT)
+        # Esperar confirmación de publicación; ajustar el selector según la interfaz de éxito
+        logging.info("⏳ Esperando confirmación de post publicado...")
+        # Puedes buscar por texto o un mensaje de éxito en lugar de "#gf_1067" si es más fiable
+        page.wait_for_selector("div.post-success", timeout=DEFAULT_TIMEOUT)
         logging.info("✅ Post creado exitosamente")
         page.screenshot(path="screenshot_post_created.png")
         
     except TimeoutError as e:
-        logging.error(f"❌ Timeout durante la creación del post: {e}")
+        logging.error("❌ Timeout durante la creación del post: %s", e)
         page.screenshot(path="screenshot_post_failed.png")
         raise
 
@@ -128,25 +141,25 @@ def run_bot(headless_mode: bool):
         logging.error("❌ Las variables de entorno GRINGO_EMAIL o GRINGO_PASSWORD no están definidas.")
         sys.exit(1)
 
-    browser = None
-    page = None
-
     with sync_playwright() as p:
         try:
-            logging.info(f"🚀 Iniciando Playwright... (headless={headless_mode})")
+            logging.info("🚀 Iniciando Playwright... (headless=%s)", headless_mode)
             browser = p.chromium.launch(headless=headless_mode)
-            context = browser.new_context()
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 720}
+            )
             page = context.new_page()
 
             logging.info("🏁 Iniciando secuencia de login y creación del post...")
             login(page, EMAIL, PASSWORD)
             
-            # Definir datos para el post de servicio a crear.
             post_title = "Dra Priscila Matovelle; geriatrics-palliative care"
             post_description = (
                 "Hello, dear expats!\n\n"
                 "My name is Dr. Priscila Matovelle, and I specialize in geriatrics and palliative care. "
-                "I’m originally from Cuenca, where I studied medicine before continuing my training in Spain, where I also earned my Ph.D. in elderly care.\n\n"
+                "I’m originally from Cuenca, where I studied medicine before continuing my training in Spain, "
+                "where I also earned my Ph.D. in elderly care.\n\n"
                 "After years of international experience, I recently returned to Cuenca, and I’m excited to offer high-quality, compassionate medical care to the expat community.\n\n"
                 "I understand how challenging it can be to navigate healthcare in a foreign country—I lived in Virginia Beach for a year, so I truly empathize with those challenges.\n\n"
                 "Medical Services:\n"
@@ -174,16 +187,15 @@ def run_bot(headless_mode: bool):
                     page.screenshot(path="screenshot_error.png")
                     logging.info("📸 Screenshot de error tomada.")
                 except Exception as ss_error:
-                    logging.warning(f"⚠️ No se pudo tomar screenshot del error: {ss_error}")
+                    logging.warning("⚠️ No se pudo tomar screenshot del error: %s", ss_error)
             raise
         finally:
-            if browser:
+            try:
                 browser.close()
                 logging.info("🚪 Navegador cerrado.")
-            else:
+            except Exception:
                 logging.warning("⚠️ No se cerró el navegador.")
 
-# --- Entrada principal ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Bot de GringoPost - Creación de Post de Servicios")
     parser.add_argument(
