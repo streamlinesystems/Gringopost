@@ -30,27 +30,24 @@ def login(page: Page, email: str, password: str, attempts: int = 3):
         try:
             # Username: fallback between "#username" and "#user_login"
             username_locator = page.locator("#username, #user_login")
-            username_locator.wait_for(timeout=DEFAULT_TIMEOUT)
+            username_locator.wait_for()
             username_locator.fill(email)
 
             # Password
             password_locator = page.locator("input#password")
-            password_locator.wait_for(timeout=DEFAULT_TIMEOUT)
+            password_locator.wait_for()
             password_locator.fill(password)
 
             # Remember Me checkbox: fallback between input[name='rememberme'] and input#remember_me
             remember_me_locator = page.locator("input[name='rememberme'], input#remember_me")
-            remember_me_locator.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
+            remember_me_locator.wait_for(state="visible")
             remember_me_locator.check()
 
             # Login button: fallback between input[name='wp-submit'] and button with text "Log In"
-            try:
-                submit_locator = page.locator("input[name='wp-submit'], button:has-text('Log In')")
-                submit_locator.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
-                if not submit_locator.is_enabled():
-                    raise TimeoutError("Login button not enabled!")
-            except TimeoutError:
-                raise TimeoutError("No login button found with provided selectors.")
+            submit_locator = page.locator("input[name='wp-submit'], button:has-text('Log In')")
+            submit_locator.wait_for(state="visible")
+            if not submit_locator.is_enabled():
+                raise TimeoutError("Login button found but is not enabled!")
 
             if not submit_locator.is_visible():
                 submit_locator.scroll_into_view_if_needed()
@@ -59,7 +56,7 @@ def login(page: Page, email: str, password: str, attempts: int = 3):
 
             # Wait for dashboard redirection (or check an element characteristic)
             logging.info("🔄 Waiting for dashboard redirection...")
-            page.wait_for_url(DASHBOARD_URL_PATTERN, timeout=DEFAULT_TIMEOUT)
+            page.wait_for_url(DASHBOARD_URL_PATTERN)
             logging.info("✅ Login successful on attempt %d", attempt)
             # Optionally, take a screenshot:
             # page.screenshot(path="screenshot_login_success.png")
@@ -74,58 +71,66 @@ def login(page: Page, email: str, password: str, attempts: int = 3):
 def create_service_post(page: Page, title: str, description: str, public_contact: str, city: str):
     """
     Fills and submits the 'service post' form.
-    Verify the selectors on your posting page and adjust if needed.
     """
     logging.info("📝 Navigating to new post page: %s", NEW_POST_URL)
     page.goto(NEW_POST_URL)
+    try:
+        # Title
+        title_locator = page.locator("input[name='post_title']")
+        title_locator.wait_for()
+        title_locator.fill(title)
 
-    # Title
-    title_locator = page.locator("input[name='post_title']")
-    title_locator.wait_for(timeout=DEFAULT_TIMEOUT)
-    title_locator.fill(title)
+        # Description
+        desc_locator = page.locator("textarea[name='post_description']")
+        desc_locator.wait_for()
+        desc_locator.fill(description)
 
-    # Description
-    desc_locator = page.locator("textarea[name='post_description']")
-    desc_locator.wait_for(timeout=DEFAULT_TIMEOUT)
-    desc_locator.fill(description)
+        # Public Contact info
+        contact_locator = page.locator("input[name='public_contact']")
+        contact_locator.wait_for()
+        contact_locator.fill(public_contact)
 
-    # Public Contact info
-    contact_locator = page.locator("input[name='public_contact']")
-    contact_locator.wait_for(timeout=DEFAULT_TIMEOUT)
-    contact_locator.fill(public_contact)
+        # City
+        city_locator = page.locator("input[name='city']")
+        city_locator.wait_for()
+        city_locator.fill(city)
 
-    # City
-    city_locator = page.locator("input[name='city']")
-    city_locator.wait_for(timeout=DEFAULT_TIMEOUT)
-    city_locator.fill(city)
+        # Boost/Newsletter: select "None"
+        boost_locator = page.locator("input[name='post_boost'][value='None']")
+        boost_locator.wait_for(state="visible")
+        boost_locator.check()
 
-    # Boost/Newsletter: select "None"
-    boost_locator = page.locator("input[name='post_boost'][value='None']")
-    boost_locator.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
-    boost_locator.check()
+        # Next Button
+        next_btn = page.locator("button[name='next']")
+        next_btn.wait_for(state="visible")
+        if not next_btn.is_enabled():
+            raise TimeoutError("Next button not enabled!")
+        next_btn.click()
 
-    # Next Button
-    next_btn = page.locator("button[name='next']")
-    next_btn.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
-    if not next_btn.is_enabled():
-        raise TimeoutError("Next button not enabled!")
-    next_btn.click()
+        # Review page (verify that the review container is correct)
+        review_locator = page.locator("#gf_1067")
+        review_locator.wait_for()
 
-    # Review page (verify that the review container is correct)
-    review_locator = page.locator("#gf_1067")
-    review_locator.wait_for(timeout=DEFAULT_TIMEOUT)
+        # Send Button
+        send_btn = page.locator("button[name='send']")
+        send_btn.wait_for(state="visible")
+        if not send_btn.is_enabled():
+            raise TimeoutError("Send button not enabled!")
+        send_btn.click()
 
-    # Send Button
-    send_btn = page.locator("button[name='send']")
-    send_btn.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
-    if not send_btn.is_enabled():
-        raise TimeoutError("Send button not enabled!")
-    send_btn.click()
+        # Confirmation element
+        confirmation_locator = page.locator("div.post-success")
+        confirmation_locator.wait_for()
+        logging.info("✅ Service post created successfully.")
 
-    # Confirmation element (verify this selector for success)
-    confirmation_locator = page.locator("div.post-success")
-    confirmation_locator.wait_for(timeout=DEFAULT_TIMEOUT)
-    logging.info("✅ Service post created successfully.")
+    except TimeoutError as e:
+        logging.error("❌ Timeout during post creation: %s", e)
+        page.screenshot(path="screenshot_post_failed.png")
+        raise
+    except Exception as e:
+        logging.error("❌ Error during post creation: %s", e)
+        page.screenshot(path="screenshot_post_error.png")
+        raise
 
 def run_bot(headless_mode: bool, title: str, description: str, public_contact: str, city: str):
     """
