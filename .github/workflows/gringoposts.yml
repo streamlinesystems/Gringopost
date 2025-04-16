@@ -1,15 +1,12 @@
 name: GringoPost Auto-Publisher
 
 on:
-  # Permite ejecución manual desde la pestaña Actions en GitHub
+  # Allows manual triggering via the Actions tab
   workflow_dispatch:
 
-  # Ejecuta automáticamente Lunes, Miércoles y Viernes a las 9:00 AM GMT-5 → 14:00 UTC
+  # Automatically run on Monday, Wednesday, and Friday at 9:00 AM GMT-5 → 14:00 UTC
   schedule:
-    - cron: '0 14 * * 1,3,5' 
-
-  # push:
-  #   branches: [ main ]
+    - cron: '0 14 * * 1,3,5'
 
 jobs:
   publish-post:
@@ -37,8 +34,16 @@ jobs:
         env:
           GRINGO_EMAIL: ${{ secrets.GRINGO_EMAIL }}
           GRINGO_PASSWORD: ${{ secrets.GRINGO_PASSWORD }}
+          POST_TITLE: ${{ secrets.POST_TITLE }}
+          POST_DESCRIPTION: ${{ secrets.POST_DESCRIPTION }}
+          POST_CONTACT: ${{ secrets.POST_CONTACT }}
+          POST_CITY: ${{ secrets.POST_CITY }}
         run: |
-          python post_gringopost.py --headless
+          python post_gringopost.py --headless \
+            --title "$POST_TITLE" \
+            --description "$POST_DESCRIPTION" \
+            --contact "$POST_CONTACT" \
+            --city "$POST_CITY"
 
       - name: Upload screenshots artifact
         uses: actions/upload-artifact@v4
