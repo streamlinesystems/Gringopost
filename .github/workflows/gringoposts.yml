@@ -1,55 +1,14 @@
-name: GringoPost Auto-Publisher
-
-on:
-  # Allows manual triggering via the Actions tab
-  workflow_dispatch:
-
-  # Automatically run on Monday, Wednesday, and Friday at 9:00 AM GMT-5 → 14:00 UTC
-  schedule:
-    - cron: '0 14 * * 1,3,5'
-
-jobs:
-  publish-post:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Install Playwright browsers and dependencies
-        run: |
-          python -m playwright install --with-deps chromium
-
       - name: Run GringoPost Bot
         env:
-          GRINGO_EMAIL: ${{ secrets.GRINGO_EMAIL }}
-          GRINGO_PASSWORD: ${{ secrets.GRINGO_PASSWORD }}
-          POST_TITLE: ${{ secrets.POST_TITLE }}
-          POST_DESCRIPTION: ${{ secrets.POST_DESCRIPTION }}
-          POST_CONTACT: ${{ secrets.POST_CONTACT }}
-          POST_CITY: ${{ secrets.POST_CITY }}
+          GRINGO_EMAIL:     ${{ secrets.GRINGO_EMAIL }}
+          GRINGO_PASSWORD:  ${{ secrets.GRINGO_PASSWORD }}
+          POST_TITLE:       ${{ secrets.POST_TITLE }}
+          POST_DESC:        ${{ secrets.POST_DESCRIPTION }}
+          POST_CONTACT:     ${{ secrets.POST_CONTACT }}
+          POST_CITY:        ${{ secrets.POST_CITY }}
         run: |
           python post_gringopost.py --headless \
-            --title "$POST_TITLE" \
-            --description "$POST_DESCRIPTION" \
-            --contact "$POST_CONTACT" \
-            --city "$POST_CITY"
-
-      - name: Upload screenshots artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: gringopost-screenshots-${{ github.run_id }}
-          path: |
-            screenshot_*.png
-          retention-days: 5
+            --title       "$POST_TITLE" \
+            --description "$POST_DESC" \
+            --contact     "$POST_CONTACT" \
+            --city        "$POST_CITY"
