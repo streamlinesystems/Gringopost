@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import sys
 import argparse
@@ -11,115 +12,121 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 LOGIN_URL = "https://gringopost.com/wp-login.php"
 DASHBOARD_URL_PATTERN = "**/users/bookmark*"
 NEW_POST_URL = "https://gringopost.com/posting-page/services/"
-DEFAULT_TIMEOUT = 60_000
+
+# Increase the default timeout to 2 minutes
+DEFAULT_TIMEOUT = 120_000  
 
 EMAIL = os.getenv("GRINGO_EMAIL")
 PASSWORD = os.getenv("GRINGO_PASSWORD")
 
+
 def login(page: Page, email: str, password: str, attempts: int = 3):
     logging.info("🌐 Opening login page…")
     page.goto(LOGIN_URL)
+    # wait until all network calls settle
+    page.wait_for_load_state("networkidle", timeout=DEFAULT_TIMEOUT)
 
     for attempt in range(1, attempts + 1):
         try:
-            # Username (fallback on #username or #user_login)
-            username_locator = page.locator("#username, #user_login")
-            username_locator.wait_for(timeout=DEFAULT_TIMEOUT)
-            username_locator.fill(email)
+            logging.info("🖊️ Login attempt %d/%d", attempt, attempts)
 
-            # Password
-            password_locator = page.locator("input#password")
-            password_locator.wait_for(timeout=DEFAULT_TIMEOUT)
-            password_locator.fill(password)
+            # Fill username (either #username or #user_login)
+            user_field = page.locator("#username, #user_login")
+            user_field.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
+            user_field.fill(email)
 
-            # —— FIXED: target only the actual Remember Me checkbox by its ID
-            remember = page.locator("input#remember_me")
-            if remember.is_visible():
-                remember.check()
+            # Fill password
+            pwd_field = page.locator("input#password")
+            pwd_field.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
+            pwd_field.fill(password)
 
-            # Login button (fallback on input or a button with text)
-            submit_locator = page.locator(
-                "input[name='wp-submit'], button:has-text('Log In')"
+            # Check "Remember Me" if present
+            remember = page.locator("form#loginform input[name='rememberme'], form#loginform input#remember_me")
+            if remember.count() == 1:
+                remember.check(timeout=DEFAULT_TIMEOUT)
+                logging.info("🔒 Remember Me checked")
+
+            # Locate the submit button inside the WP login form
+            submit = page.locator(
+                "form#loginform input[type='submit'], form#loginform button[type='submit']"
             )
-            submit_locator.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
-            if not submit_locator.is_enabled():
-                raise TimeoutError("Login button not enabled!")
-            submit_locator.click()
+            submit.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
+            submit.click()
 
-            # Wait for dashboard
+            # Wait for dashboard URL pattern
             page.wait_for_url(DASHBOARD_URL_PATTERN, timeout=DEFAULT_TIMEOUT)
             logging.info("✅ Login successful on attempt %d", attempt)
             return
 
         except TimeoutError as e:
-            logging.error("❌ Timeout during login attempt %d: %s", attempt, e)
+            logging.error("❌ Timeout on login attempt %d: %s", attempt, e)
+            page.screenshot(path=f"screenshot_login_failed_{attempt}.png")
             if attempt == attempts:
                 raise
+
 
 def create_service_post(page: Page, title: str, description: str, public_contact: str, city: str):
     logging.info("📝 Navigating to new post page…")
     page.goto(NEW_POST_URL)
+    page.wait_for_load_state("networkidle", timeout=DEFAULT_TIMEOUT)
 
     # Title
-    title_loc = page.locator("input[name='post_title']")
-    title_loc.wait_for(timeout=DEFAULT_TIMEOUT)
-    title_loc.fill(title)
+    title_fld = page.locator("input[name='post_title']")
+    title_fld.wait_for(timeout=DEFAULT_TIMEOUT)
+    title_fld.fill(title)
 
     # Description
-    desc_loc = page.locator("textarea[name='post_description']")
-    desc_loc.wait_for(timeout=DEFAULT_TIMEOUT)
-    desc_loc.fill(description)
+    desc_fld = page.locator("textarea[name='post_description']")
+    desc_fld.wait_for(timeout=DEFAULT_TIMEOUT)
+    desc_fld.fill(description)
 
     # Public Contact
-    contact_loc = page.locator("input[name='public_contact']")
-    contact_loc.wait_for(timeout=DEFAULT_TIMEOUT)
-    contact_loc.fill(public_contact)
+    contact_fld = page.locator("input[name='public_contact']")
+    contact_fld.wait_for(timeout=DEFAULT_TIMEOUT)
+    contact_fld.fill(public_contact)
 
     # City
-    city_loc = page.locator("input[name='city']")
-    city_loc.wait_for(timeout=DEFAULT_TIMEOUT)
-    city_loc.fill(city)
+    city_fld = page.locator("input[name='city']")
+    city_fld.wait_for(timeout=DEFAULT_TIMEOUT)
+    city_fld.fill(city)
 
-    # Boost/Newsletter = None
-    boost_loc = page.locator("input[name='post_boost'][value='None']")
-    boost_loc.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
-    boost_loc.check()
+    # Boost/Newsletter: select "None"
+    boost = page.locator("input[name='post_boost'][value='None']")
+    boost.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
+    boost.check()
 
     # Next
-    next_btn = page.locator("button[name='next']")
+    next_btn = page.locator("button[name='next'], form#postform button:has-text('Next')")
     next_btn.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
-    if not next_btn.is_enabled():
-        raise TimeoutError("Next button not enabled!")
     next_btn.click()
 
     # Review
-    review_loc = page.locator("#gf_1067")
-    review_loc.wait_for(timeout=DEFAULT_TIMEOUT)
+    review = page.locator("#gf_1067")
+    review.wait_for(timeout=DEFAULT_TIMEOUT)
 
     # Send
-    send_btn = page.locator("button[name='send']")
+    send_btn = page.locator("button[name='send'], form#postform button:has-text('Send')")
     send_btn.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
-    if not send_btn.is_enabled():
-        raise TimeoutError("Send button not enabled!")
     send_btn.click()
 
     # Confirmation
-    confirm_loc = page.locator("div.post-success")
-    confirm_loc.wait_for(timeout=DEFAULT_TIMEOUT)
+    success = page.locator("div.post-success, .success-message")
+    success.wait_for(timeout=DEFAULT_TIMEOUT)
     logging.info("✅ Service post created successfully.")
 
-def run_bot(headless_mode: bool, title: str, description: str, public_contact: str, city: str):
+
+def run_bot(headless: bool, title: str, desc: str, contact: str, city: str):
     if not EMAIL or not PASSWORD:
-        logging.error("❌ GRINGO_EMAIL or GRINGO_PASSWORD not set.")
+        logging.error("❌ Missing GRINGO_EMAIL or GRINGO_PASSWORD env vars")
         sys.exit(1)
 
     with sync_playwright() as p:
-        logging.info("🚀 Starting Playwright (headless=%s)…", headless_mode)
-        browser = p.chromium.launch(headless=headless_mode)
+        browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
             ),
             viewport={"width": 1280, "height": 720}
         )
@@ -128,36 +135,33 @@ def run_bot(headless_mode: bool, title: str, description: str, public_contact: s
 
         try:
             login(page, EMAIL, PASSWORD)
-            create_service_post(page, title, description, public_contact, city)
-            logging.info("✅ Bot finished successfully.")
-        except Exception as e:
-            logging.error("❌ Bot run failure: %s", e, exc_info=True)
+            create_service_post(page, title, desc, contact, city)
+            logging.info("✅ Bot finished all steps.")
+        except Exception:
+            logging.exception("❌ Bot encountered an error:")
             sys.exit(1)
         finally:
             context.close()
             browser.close()
 
+
 def main():
-    parser = argparse.ArgumentParser(description="GringoPost Bot")
-    parser.add_argument(
-        "--headless",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Run in headless mode"
-    )
-    parser.add_argument("--title", required=True, help="Post title")
-    parser.add_argument("--description", required=True, help="Post description")
-    parser.add_argument("--contact", required=True, help="Public contact info")
-    parser.add_argument("--city", required=True, help="City for the post")
+    parser = argparse.ArgumentParser(description="GringoPost Auto-Publisher")
+    parser.add_argument("--headless", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--title",       required=True, help="The post title")
+    parser.add_argument("--description", required=True, help="The post description")
+    parser.add_argument("--contact",     required=True, help="Public contact info")
+    parser.add_argument("--city",        required=True, help="City for the post")
     args = parser.parse_args()
 
     run_bot(
-        headless_mode=args.headless,
+        headless=args.headless,
         title=args.title,
-        description=args.description,
-        public_contact=args.contact,
+        desc=args.description,
+        contact=args.contact,
         city=args.city
     )
+
 
 if __name__ == "__main__":
     main()
