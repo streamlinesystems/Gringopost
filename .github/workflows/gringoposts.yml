@@ -29,12 +29,12 @@ jobs:
 
       - name: Run GringoPost Bot
         env:
-          GRINGO_EMAIL:     ${{ secrets.GRINGO_EMAIL }}
-          GRINGO_PASSWORD:  ${{ secrets.GRINGO_PASSWORD }}
-          POST_TITLE:       ${{ secrets.POST_TITLE }}
-          POST_DESCRIPTION: ${{ secrets.POST_DESCRIPTION }}
-          POST_CONTACT:     ${{ secrets.POST_CONTACT }}
-          POST_CITY:        ${{ secrets.POST_CITY }}
+          GRINGO_EMAIL:       ${{ secrets.GRINGO_EMAIL }}
+          GRINGO_PASSWORD:    ${{ secrets.GRINGO_PASSWORD }}
+          POST_TITLE:         ${{ secrets.POST_TITLE }}
+          POST_DESCRIPTION:   ${{ secrets.POST_DESCRIPTION }}
+          POST_CONTACT:       ${{ secrets.POST_CONTACT }}
+          POST_CITY:          ${{ secrets.POST_CITY }}
         run: |
           python post_gringopost.py --headless \
             --title       "$POST_TITLE" \
