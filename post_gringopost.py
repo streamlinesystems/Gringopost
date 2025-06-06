@@ -28,8 +28,12 @@ def login(page: Page, email: str, password: str, attempts: int = 3):
             page.fill("#username, #user_login", email)
 
             # fill password
-            page.locator("input#password").wait_for(timeout=DEFAULT_TIMEOUT)
-            page.fill("input#password", password)
+            # The login form sometimes names the password field either
+            # `pwd` or `user_pass`. Using a selector that targets both
+            # ensures compatibility with different form versions.
+            pwd_selector = "input[name='pwd'], input#user_pass"
+            page.locator(pwd_selector).wait_for(timeout=DEFAULT_TIMEOUT)
+            page.fill(pwd_selector, password)
 
             # remember-me checkbox
             page.locator("input[name='rememberme'], input#remember_me")\
