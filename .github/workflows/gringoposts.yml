@@ -4,30 +4,40 @@ name: GringoPost Auto-Publisher
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 14 * * 1,3,5'  # 14:00 UTC = 09:00 (GMT-5)
+    - cron: '0 14 * * 1,3,5'
 
 jobs:
   publish-post:
     runs-on: ubuntu-latest
 
+    env:
+      GRINGO_EMAIL:       ${{ secrets.GRINGO_EMAIL }}
+      GRINGO_PASSWORD:    ${{ secrets.GRINGO_PASSWORD }}
+      POST_TITLE:         ${{ secrets.POST_TITLE }}
+      POST_DESCRIPTION:   ${{ secrets.POST_DESCRIPTION }}
+      POST_CONTACT:       ${{ secrets.POST_CONTACT }}
+      POST_CITY:          ${{ secrets.POST_CITY }}
+
     strategy:
-      # If you ever want multi-version support, you can add more here
       matrix:
         python-version: [3.11]
 
     steps:
-      - name: 👷‍♀️ Check required secrets
+      - name: Check required secrets
+        shell: bash
         run: |
           missing=false
           for var in GRINGO_EMAIL GRINGO_PASSWORD POST_TITLE POST_DESCRIPTION POST_CONTACT POST_CITY; do
-            if [ -z "${{ secrets[$var] }}" ]; then
+            if [ -z "${!var}" ]; then
               echo "❌ Secret $var is not set!"
               missing=true
             fi
           done
-          ${{ if eq(missing, 'true') }} && exit 1
+          if [ "$missing" = true ]; then
+            exit 1
+          fi
 
-      - name: 🐍 Cache Python dependencies
+      - name: Cache Python dependencies
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
@@ -35,31 +45,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: 🔧 Set up Python ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: 🛠 Enable debug logging
-        run: |
-          echo "PYTHONLOGLEVEL=DEBUG" >> $GITHUB_ENV
+      - name: Enable debug logging
+        run: echo "PYTHONLOGLEVEL=DEBUG" >> $GITHUB_ENV
 
-      - name: 📦 Install Python dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 🎭 Install Playwright (browsers & deps)
+      - name: Install Playwright (browsers & deps)
         uses: microsoft/playwright-action@v1
 
-      - name: 🚀 Run GringoPost Bot
-        env:
-          GRINGO_EMAIL:       ${{ secrets.GRINGO_EMAIL }}
-          GRINGO_PASSWORD:    ${{ secrets.GRINGO_PASSWORD }}
-          POST_TITLE:         ${{ secrets.POST_TITLE }}
-          POST_DESCRIPTION:   ${{ secrets.POST_DESCRIPTION }}
-          POST_CONTACT:       ${{ secrets.POST_CONTACT }}
-          POST_CITY:          ${{ secrets.POST_CITY }}
+      - name: Run GringoPost Bot
         run: |
           python post_gringopost.py --headless \
             --title       "$POST_TITLE" \
@@ -67,7 +69,7 @@ jobs:
             --contact     "$POST_CONTACT" \
             --city        "$POST_CITY"
 
-      - name: 📸 Upload debug-screenshots on failure
+      - name: Upload debug-screenshots on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
