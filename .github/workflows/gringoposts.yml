@@ -3,7 +3,7 @@ name: GringoPost Auto-Publisher
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 14 * * 1,3,5'  # 14:00 UTC = 09:00 (GMT-5)
+    - cron: '0 14 1,15 * *'  # 14:00 UTC = 09:00 (GMT-5)
 
 jobs:
   publish-post:
